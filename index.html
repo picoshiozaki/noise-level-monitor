@@ -1,7 +1,8 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>オフィス音量モニター</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>オフィス音量モニター（改善版）</title>
     <style>
         body {
             margin: 0;
@@ -17,14 +18,16 @@
         .container {
             text-align: center;
             color: #fff;
+            width: 95%;
+            max-width: 800px;
         }
         
         #visualizer {
-            width: 800px;
-            height: 400px;
+            width: 100%;
+            height: 200px;
             background: #2a2a2a;
             border-radius: 10px;
-            margin: 20px;
+            margin: 10px 0;
             position: relative;
             overflow: hidden;
         }
@@ -33,38 +36,61 @@
             position: absolute;
             bottom: 0;
             background: linear-gradient(to top, #4CAF50, #8BC34A);
-            width: 20px;
             transition: height 0.1s ease;
         }
         
+        .info-panel {
+            background: rgba(0, 0, 0, 0.5);
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+        }
+        
         #volumeLevel {
-            font-size: 24px;
-            margin: 20px;
+            font-size: 2rem;
+            margin: 10px 0;
+        }
+        
+        #volumeDescription {
+            font-size: 1.2rem;
+            margin: 5px 0;
+            color: #8BC34A;
         }
         
         button {
-            padding: 10px 20px;
-            font-size: 16px;
+            padding: 15px 30px;
+            font-size: 1.2rem;
             border: none;
-            border-radius: 5px;
+            border-radius: 25px;
             background: #4CAF50;
             color: white;
             cursor: pointer;
             margin: 10px;
+            transition: background 0.3s;
         }
         
-        button:hover {
+        button:active {
             background: #45a049;
+        }
+        
+        .status {
+            font-size: 0.9rem;
+            color: #888;
+            margin-top: 5px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>オフィス音量モニター</h1>
+        <h1>音量モニター（改善版）</h1>
         <div id="visualizer"></div>
-        <div id="volumeLevel">現在の音量: 0 dB</div>
-        <button onclick="startRecording()">開始</button>
+        <div class="info-panel">
+            <div id="volumeLevel">0 dB</div>
+            <div id="volumeDescription">静かな環境</div>
+        </div>
+        <button onclick="startRecording()" id="startButton">開始</button>
         <button onclick="stopRecording()">停止</button>
+        <div class="status" id="statusText"></div>
     </div>
 
     <script>
@@ -75,13 +101,36 @@
         let bars = [];
         const BAR_COUNT = 32;
         
+        // 音量レベルの基準値を調整
+        const CALIBRATION_OFFSET = 40; // 基準オフセット
+        const MOBILE_ADJUSTMENT = 20;  // モバイル機器用の補正値
+        
+        // デシベル変換の改善
+        function rawToDecibels(raw) {
+            // より正確なdB計算（モバイル向けに調整）
+            return Math.round((raw * 100 / 255) * 0.8 + CALIBRATION_OFFSET);
+        }
+        
+        // 音量レベルの説明を取得
+        function getVolumeDescription(db) {
+            if (db < 45) return "非常に静か（図書館レベル）";
+            if (db < 55) return "静かな環境（オフィスレベル）";
+            if (db < 65) return "普通の会話レベル";
+            if (db < 75) return "やや騒がしい";
+            if (db < 85) return "騒がしい（警告レベル）";
+            return "非常に騒がしい（要注意）";
+        }
+        
         // ビジュアライザーの初期化
         const visualizer = document.getElementById('visualizer');
+        const visualizerWidth = visualizer.clientWidth;
+        const barWidth = (visualizerWidth / BAR_COUNT) - 2;
+        
         for (let i = 0; i < BAR_COUNT; i++) {
             const bar = document.createElement('div');
             bar.className = 'bar';
-            bar.style.left = (i * (800 / BAR_COUNT)) + 'px';
-            bar.style.width = (800 / BAR_COUNT - 2) + 'px';
+            bar.style.left = (i * (visualizerWidth / BAR_COUNT)) + 'px';
+            bar.style.width = barWidth + 'px';
             visualizer.appendChild(bar);
             bars.push(bar);
         }
@@ -91,23 +140,37 @@
                 if (!audioContext) {
                     audioContext = new (window.AudioContext || window.webkitAudioContext)();
                     analyser = audioContext.createAnalyser();
-                    analyser.fftSize = 64;
+                    analyser.fftSize = 1024; // より細かい解析
                     
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        audio: {
+                            echoCancellation: true,
+                            noiseSuppression: true,
+                            autoGainControl: false
+                        }
+                    });
+                    
                     microphone = audioContext.createMediaStreamSource(stream);
                     microphone.connect(analyser);
+                    
+                    document.getElementById('statusText').textContent = 
+                        'マイクアクセス成功 - 測定中...';
                 }
                 
                 isRecording = true;
+                document.getElementById('startButton').disabled = true;
                 updateVisualizer();
             } catch (error) {
-                console.error('マイクのアクセスに失敗しました:', error);
-                alert('マイクへのアクセスを許可してください。');
+                console.error('マイクのアクセスに失敗:', error);
+                document.getElementById('statusText').textContent = 
+                    'エラー: マイクへのアクセスを許可してください';
             }
         }
         
         function stopRecording() {
             isRecording = false;
+            document.getElementById('startButton').disabled = false;
+            document.getElementById('statusText').textContent = '停止中';
         }
         
         function updateVisualizer() {
@@ -117,17 +180,33 @@
             analyser.getByteFrequencyData(dataArray);
             
             let sum = 0;
+            let validSamples = 0;
+            
             for (let i = 0; i < BAR_COUNT; i++) {
                 const value = dataArray[i];
-                const height = (value / 255) * 400;
+                if (value > 0) {
+                    sum += value;
+                    validSamples++;
+                }
+                const height = (value / 255) * visualizer.clientHeight;
                 bars[i].style.height = height + 'px';
-                sum += value;
             }
             
-            // 平均音量を計算して表示
-            const avgVolume = Math.round((sum / BAR_COUNT) * 100) / 100;
+            // より正確な平均値計算
+            const avgVolume = validSamples > 0 ? sum / validSamples : 0;
+            const decibels = rawToDecibels(avgVolume);
+            
             document.getElementById('volumeLevel').textContent = 
-                `現在の音量: ${avgVolume} dB`;
+                `${decibels} dB`;
+            document.getElementById('volumeDescription').textContent = 
+                getVolumeDescription(decibels);
+            
+            // バーの色を音量に応じて変更
+            const hue = Math.max(0, 120 - (decibels - 40));
+            bars.forEach(bar => {
+                bar.style.background = 
+                    `linear-gradient(to top, hsl(${hue}, 50%, 50%), hsl(${hue}, 70%, 60%))`;
+            });
             
             requestAnimationFrame(updateVisualizer);
         }
