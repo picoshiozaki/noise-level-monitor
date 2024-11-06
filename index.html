@@ -1,8 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>オフィス音量モニター (デモ)</title>
+    <title>オフィス音量モニター</title>
     <style>
         body {
             margin: 0;
@@ -18,21 +17,14 @@
         .container {
             text-align: center;
             color: #fff;
-            width: 95%;
-            max-width: 800px;
-        }
-        
-        h1 {
-            font-size: 1.5rem;
-            margin: 10px 0;
         }
         
         #visualizer {
-            width: 100%;
-            height: 300px;
+            width: 800px;
+            height: 400px;
             background: #2a2a2a;
             border-radius: 10px;
-            margin: 10px 0;
+            margin: 20px;
             position: relative;
             overflow: hidden;
         }
@@ -46,30 +38,23 @@
         }
         
         #volumeLevel {
-            font-size: 1.2rem;
-            margin: 10px 0;
+            font-size: 24px;
+            margin: 20px;
         }
         
         button {
             padding: 10px 20px;
-            font-size: 1rem;
+            font-size: 16px;
             border: none;
             border-radius: 5px;
             background: #4CAF50;
             color: white;
             cursor: pointer;
-            margin: 5px;
-            touch-action: manipulation;
+            margin: 10px;
         }
         
         button:hover {
             background: #45a049;
-        }
-
-        .demo-note {
-            color: #888;
-            font-size: 0.8rem;
-            margin-top: 20px;
         }
     </style>
 </head>
@@ -77,55 +62,74 @@
     <div class="container">
         <h1>オフィス音量モニター</h1>
         <div id="visualizer"></div>
-        <div id="volumeLevel">現在の音量: 45 dB</div>
-        <button onclick="toggleAnimation()">開始/停止</button>
-        <div class="demo-note">※これはデモ表示です</div>
+        <div id="volumeLevel">現在の音量: 0 dB</div>
+        <button onclick="startRecording()">開始</button>
+        <button onclick="stopRecording()">停止</button>
     </div>
 
     <script>
-        const BAR_COUNT = 32;
-        let isAnimating = false;
+        let audioContext;
+        let analyser;
+        let microphone;
+        let isRecording = false;
         let bars = [];
+        const BAR_COUNT = 32;
         
         // ビジュアライザーの初期化
         const visualizer = document.getElementById('visualizer');
-        const visualizerWidth = visualizer.clientWidth;
-        const barWidth = (visualizerWidth / BAR_COUNT) - 2;
-        
         for (let i = 0; i < BAR_COUNT; i++) {
             const bar = document.createElement('div');
             bar.className = 'bar';
-            bar.style.left = (i * (visualizerWidth / BAR_COUNT)) + 'px';
-            bar.style.width = barWidth + 'px';
+            bar.style.left = (i * (800 / BAR_COUNT)) + 'px';
+            bar.style.width = (800 / BAR_COUNT - 2) + 'px';
             visualizer.appendChild(bar);
             bars.push(bar);
         }
         
-        function toggleAnimation() {
-            isAnimating = !isAnimating;
-            if (isAnimating) {
-                animate();
+        async function startRecording() {
+            try {
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    analyser = audioContext.createAnalyser();
+                    analyser.fftSize = 64;
+                    
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    microphone = audioContext.createMediaStreamSource(stream);
+                    microphone.connect(analyser);
+                }
+                
+                isRecording = true;
+                updateVisualizer();
+            } catch (error) {
+                console.error('マイクのアクセスに失敗しました:', error);
+                alert('マイクへのアクセスを許可してください。');
             }
         }
         
-        function animate() {
-            if (!isAnimating) return;
+        function stopRecording() {
+            isRecording = false;
+        }
+        
+        function updateVisualizer() {
+            if (!isRecording) return;
             
-            // ランダムな高さを生成（オフィスの静かな環境をシミュレート）
+            const dataArray = new Uint8Array(analyser.frequencyBinCount);
+            analyser.getByteFrequencyData(dataArray);
+            
+            let sum = 0;
             for (let i = 0; i < BAR_COUNT; i++) {
-                const baseHeight = 100; // 基本の高さ
-                const randomVariation = Math.random() * 50; // ±25の変動
-                const height = baseHeight + randomVariation;
+                const value = dataArray[i];
+                const height = (value / 255) * 400;
                 bars[i].style.height = height + 'px';
+                sum += value;
             }
             
-            // 音量レベルの表示も更新
-            const baseVolume = 45;
-            const randomVolume = Math.floor(Math.random() * 6) - 3; // ±3dBの変動
+            // 平均音量を計算して表示
+            const avgVolume = Math.round((sum / BAR_COUNT) * 100) / 100;
             document.getElementById('volumeLevel').textContent = 
-                `現在の音量: ${baseVolume + randomVolume} dB`;
+                `現在の音量: ${avgVolume} dB`;
             
-            requestAnimationFrame(animate);
+            requestAnimationFrame(updateVisualizer);
         }
     </script>
 </body>
