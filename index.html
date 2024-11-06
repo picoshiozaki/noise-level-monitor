@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>オフィス音量モニター (デモ)</title>
+    <style>
+        body {
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            background: #1a1a1a;
+            font-family: sans-serif;
+        }
+        
+        .container {
+            text-align: center;
+            color: #fff;
+            width: 95%;
+            max-width: 800px;
+        }
+        
+        h1 {
+            font-size: 1.5rem;
+            margin: 10px 0;
+        }
+        
+        #visualizer {
+            width: 100%;
+            height: 300px;
+            background: #2a2a2a;
+            border-radius: 10px;
+            margin: 10px 0;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .bar {
+            position: absolute;
+            bottom: 0;
+            background: linear-gradient(to top, #4CAF50, #8BC34A);
+            width: 20px;
+            transition: height 0.1s ease;
+        }
+        
+        #volumeLevel {
+            font-size: 1.2rem;
+            margin: 10px 0;
+        }
+        
+        button {
+            padding: 10px 20px;
+            font-size: 1rem;
+            border: none;
+            border-radius: 5px;
+            background: #4CAF50;
+            color: white;
+            cursor: pointer;
+            margin: 5px;
+            touch-action: manipulation;
+        }
+        
+        button:hover {
+            background: #45a049;
+        }
+
+        .demo-note {
+            color: #888;
+            font-size: 0.8rem;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>オフィス音量モニター</h1>
+        <div id="visualizer"></div>
+        <div id="volumeLevel">現在の音量: 45 dB</div>
+        <button onclick="toggleAnimation()">開始/停止</button>
+        <div class="demo-note">※これはデモ表示です</div>
+    </div>
+
+    <script>
+        const BAR_COUNT = 32;
+        let isAnimating = false;
+        let bars = [];
+        
+        // ビジュアライザーの初期化
+        const visualizer = document.getElementById('visualizer');
+        const visualizerWidth = visualizer.clientWidth;
+        const barWidth = (visualizerWidth / BAR_COUNT) - 2;
+        
+        for (let i = 0; i < BAR_COUNT; i++) {
+            const bar = document.createElement('div');
+            bar.className = 'bar';
+            bar.style.left = (i * (visualizerWidth / BAR_COUNT)) + 'px';
+            bar.style.width = barWidth + 'px';
+            visualizer.appendChild(bar);
+            bars.push(bar);
+        }
+        
+        function toggleAnimation() {
+            isAnimating = !isAnimating;
+            if (isAnimating) {
+                animate();
+            }
+        }
+        
+        function animate() {
+            if (!isAnimating) return;
+            
+            // ランダムな高さを生成（オフィスの静かな環境をシミュレート）
+            for (let i = 0; i < BAR_COUNT; i++) {
+                const baseHeight = 100; // 基本の高さ
+                const randomVariation = Math.random() * 50; // ±25の変動
+                const height = baseHeight + randomVariation;
+                bars[i].style.height = height + 'px';
+            }
+            
+            // 音量レベルの表示も更新
+            const baseVolume = 45;
+            const randomVolume = Math.floor(Math.random() * 6) - 3; // ±3dBの変動
+            document.getElementById('volumeLevel').textContent = 
+                `現在の音量: ${baseVolume + randomVolume} dB`;
+            
+            requestAnimationFrame(animate);
+        }
+    </script>
+</body>
+</html>
